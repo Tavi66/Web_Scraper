@@ -1,3 +1,4 @@
+#! /usr/bin/python3
 #Ask user for link to download images
 #Ask user for folder name
 #Ask if user wants a PDF of the images
@@ -10,6 +11,7 @@ import requests
 import datetime
 from datetime import date
 from datetime import timedelta
+from PIL import Image
 
 def setupSoup (browser):
     content = browser.page_source
@@ -32,7 +34,7 @@ def printAllText(self):
     print(soup.get_text())
 #
 #WEBTOON
-def getImages(soup):
+def getImagesW(soup, browser):
     images = soup.find_all('img')
     parent = soup.find("div", id = "_imageList")
     count = 1
@@ -41,16 +43,51 @@ def getImages(soup):
         if img.parent == parent:
             if img.get('src') != 'https://webtoons-static.pstatic.net/image/bg_transparency.png':
                 src = img.get('src')
-                print(src)
-                r = requests.get(src)
-                print("Saving image...")
-                imgNo = "/home/vi/Pictures/TestImages/" + str(count) + ".jpg"
+                #print(src)
+                browser.get(src)
+                #print("Saving image...")
+                filename = "/home/vi/Pictures/Test/" + str(count) + ".png"
                 try:
-                    urllib.request.urlretrieve(src, imgNo)
+                    print("Saving image...")
+                    print(src)
+                    browser.save_screenshot(filename)
+                    cropImage(filename)
+                    count+=1
                     print("Saved image!")
                 except:
                     print("Cannot save image.")
 
+def getNextEpisode(soup, browser):
+    episodes = soup.find_all('a')
+    #parent = soup.find("li")
+    for ep in episodes:
+        if ep.findChild().getTagName ==  "span":
+            print(ep)
+            
+def downloadImageW(src, browser):
+    browser.get(src)
+    print("Saving image...")
+    filename = "/home/vi/Pictures/Test/" + str(count) + ".png"
+    try:
+        res = requests.get(src)
+        res.raise_for_status()
+        print("Saving image...")
+        imageFile = open(filename, 'wb')
+        for chunk in res.iter_content(100000):
+            imageFile.write(chunk)
+        imageFile.close()
+
+        print("Saved image!")
+    except:
+        print("Cannot save image.")
+
+def cropImage(filename):
+    #530x843
+    img = Image.open(filename)
+    #img.crop((463,0,993,843))
+    cropped = img.crop((467,0,993,843))
+    cropped.save(filename)
+    
 def alertIsPresent(browser):
     try:
         alert = browser.switch_to_alert();
@@ -143,13 +180,16 @@ def truyen():
 ###############################################
 def webtoon():
     print("Downloading Webtoon")
-    #url = input('Enter link: ')
-    #browser = webdriver.Chrome("/usr/lib/chromium-browser/chromedriver")
-    #scroll(browser, url)
+    url = input('Enter link: ')
+    browser = webdriver.Chrome("/usr/lib/chromium-browser/chromedriver")
+    scroll(browser, url)
     ##content = setupSoup(browser.page_source)
-    #content = browser.page_source
-    #soup = BeautifulSoup(content, 'html.parser')
-    #getImages(soup)
+    content = browser.page_source
+    soup = BeautifulSoup(content, 'html.parser')
+    getImagesW(soup, browser)
+    #getNextEpisode(soup,browser)
+    #downloadImageW(url, browser)
+    #browser.close()
 ###############################################
 def garfield():
     print("Download from")
@@ -218,6 +258,7 @@ def main():
 location = "/home/vi/Pictures/Images/"
 default = "/home/vi/Pictures/Images/"
 
-garfield()
+webtoon()
+#garfield()
 #truyen()        
 #main()
