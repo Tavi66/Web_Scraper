@@ -1,9 +1,13 @@
 #! /usr/bin/python3
+
 #Ask user for link to download images
-#Ask user for folder name
+#Ask user for comic folder path. 
+#get episode number/name from page_source
+#create directory in comic directory (get title of page_source)
 #Ask if user wants a PDF of the images
 #Ask if user wants to download another link
 #
+import os
 from bs4 import BeautifulSoup
 from selenium import webdriver
 import urllib.request
@@ -37,7 +41,7 @@ def printAllText(self):
 def getImagesW(soup, browser):
     images = soup.find_all('img')
     parent = soup.find("div", id = "_imageList")
-    count = 1
+    global count
     for img in images:
         #match img parent to div containing episode images
         if img.parent == parent:
@@ -56,7 +60,7 @@ def getImagesW(soup, browser):
                     print("Saved image!")
                 except:
                     print("Cannot save image.")
-
+                    
 def getNextEpisode(soup, browser):
     episodes = soup.find_all('a')
     #parent = soup.find("li")
@@ -67,6 +71,7 @@ def getNextEpisode(soup, browser):
 def downloadImageW(src, browser):
     browser.get(src)
     print("Saving image...")
+    global filename
     filename = "/home/vi/Pictures/Test/" + str(count) + ".png"
     try:
         res = requests.get(src)
@@ -107,6 +112,25 @@ def scroll(browser, url):
         lenOfPage = browser.execute_script(s)
         if lastCount == lenOfPage:
             match=True
+
+def mkdir(typeOfComic):
+    if(typeOfComic == 1): #Webtoon
+        global newPath
+        newPath = "/home/vi/Pictures/Webtoon/" + parentFolderName + "/Episode " + episodeNo +"/"
+        if not os.path.exists(newPath):
+            os.mkdir(newPath)
+    elif (typeOfComic == 2): #Other 
+        return
+
+def moveImages():
+    global newPath
+    global count
+    path = "/home/vi/Pictures/Webtoon/" + parentFolderName + "/Episode " + episodeNo +"/"
+    for i in range(1,count):
+        oldPath = "/home/vi/Pictures/Test/" + str(i) + ".png"
+        newPath = path + str(i) + ".png"
+        os.rename(oldPath, newPath)
+
 #GARFIELD###############################
 def popupIsPresent(browser):
     try: #Need to check xpath
@@ -179,14 +203,21 @@ def truyen():
     getChapter(soup, chap, endChap)
 ###############################################
 def webtoon():
+    global parentFolderName
+    global episodeNo
     print("Downloading Webtoon")
     url = input('Enter link: ')
+    parentFolderName = input ('Enter comic root folder: ')
+    episodeNo = input ('Enter episode #: ')
+
     browser = webdriver.Chrome("/usr/lib/chromium-browser/chromedriver")
     scroll(browser, url)
-    ##content = setupSoup(browser.page_source)
     content = browser.page_source
     soup = BeautifulSoup(content, 'html.parser')
+
     getImagesW(soup, browser)
+    mkdir(1)
+    moveImages()
     #getNextEpisode(soup,browser)
     #downloadImageW(url, browser)
     #browser.close()
@@ -257,6 +288,11 @@ def main():
 ###############################################
 location = "/home/vi/Pictures/Images/"
 default = "/home/vi/Pictures/Images/"
+parentFolderName = "#"
+episodeNo = "#"
+newPath = "#"
+filename = "#"
+count = 1
 
 webtoon()
 #garfield()
