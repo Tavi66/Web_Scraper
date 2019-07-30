@@ -10,6 +10,8 @@
 import os
 from bs4 import BeautifulSoup
 from selenium import webdriver
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.wait import WebDriverWait
 import urllib.request
 import requests
 import datetime
@@ -17,7 +19,7 @@ from datetime import date
 from datetime import timedelta
 from PIL import Image
 
-def setupSoup (browser):
+def setupSoup (browser, url):
     content = browser.page_source
     soup = BeautifulSoup(content, 'html.parser')
         
@@ -39,35 +41,160 @@ def printAllText(self):
 #
 #WEBTOON
 def getImagesW(soup, browser):
-    images = soup.find_all('img')
-    parent = soup.find("div", id = "_imageList")
-    global count
+    global location
+    global parentFolder
+    global titles
+    global currentIndex
+
+    images = soup.find_all('img', class_='_images')
+    parent = soup.find("div", id = "_imageList")    
+    title = titles[currentIndex]
+    folderPath = location + parentFolder + title + '/'
+    mkdir(folderPath)
+    print('Retrieving ' + title + '...')
+    count = 1
     for img in images:
         #match img parent to div containing episode images
-        if img.parent == parent:
-            if img.get('src') != 'https://webtoons-static.pstatic.net/image/bg_transparency.png':
-                src = img.get('src')
-                #print(src)
-                browser.get(src)
+        #if img.parent == parent:
+        #print(img)
+        if img.get('src') != 'https://webtoons-static.pstatic.net/image/bg_transparency.png':
+            src = img.get('src')
+            #print(src)
+            browser.get(src)
+            #print("Saving image...")
+            filename = folderPath + str(count) + '.png'
+            try:
                 #print("Saving image...")
-                filename = "/home/vi/Pictures/Test/" + str(count) + ".png"
-                try:
-                    print("Saving image...")
-                    print(src)
-                    browser.save_screenshot(filename)
-                    cropImage(filename)
-                    count+=1
-                    print("Saved image!")
-                except:
-                    print("Cannot save image.")
-                    
-def getNextEpisode(soup, browser):
-    episodes = soup.find_all('a')
-    #parent = soup.find("li")
-    for ep in episodes:
-        if ep.findChild().getTagName ==  "span":
-            print(ep)
+                #print(src)
+                browser.save_screenshot(filename)
+                cropImage(filename)
+                count+=1
+                #print("Saved image!")
+#                    downloadImageW(src,browser)
+            except:
+                return
+                #print("Cannot save image.")
+
+def getNextEpisode():
+    print("Checking files...")
+    #check if directory exists
+    #check if episodes exists in directory
+    #episodeList = checkFilesExist(episodeList)
+    checkFilesExist(episodeList)
+    print("File check complete!")
+    #return episodeList
+    
+def getEpisodeList(soup):
+    #print('Retrieving Episode List...')
+    episodeList = []
+    epList = soup.find('ul', id = '_listUl')
+    #find the a-atributes
+    for ep in epList.descendants:
+        if ep.name == 'a':
+            link = ep.get('href')
+            #print(link)
+            episodeList.append(link)
+    return episodeList
+
+def getEpisodeTitleList(soup):
+    #print('Retrieving Episode Titles...')
+    titleList = []
+    epList = soup.find('ul', id = '_listUl')
+    tList = soup.find_all('span', class_='subj')
+    #find the a-atributes
+    for t in tList:
+        if t.parent.name == 'a':
+            title = t.string
+            #print(title)
+            titleList.append(title)
+    return titleList
+
+#get all episodes in comic link + episode title
+#get all pages #clicks each link get the episode link
+def getEpisodes(soup,browser):
+    global parentFolder
+    global comicName
+    global comicType
+    
+    if comicType == 'f':
+        comicName = soup.find('h1',class_='subj').string
+    else:
+        comicName = input('Enter comic name: ')
+        
+    parentFolder = comicName + '/'
+    root = "https://www.webtoons.com"
+    if not rootExists():
+        mkroot()
+    #pages
+    pagesParent = soup.find('div',class_='paginate')
+    pages = soup.find_all('a')
+    pageList = []
+    episodeList = []
+    episodeTitleList = []
+    #get pages
+    for link in pages:
+        if link.parent == pagesParent:
+            a = link.get('href')
+            if not a == '#':
+                pageList.append(root + a)
+            else:
+                pageList.append(a)
+
+    print("\nRetrieving Episode List...")
+    for a in pageList:
+            #print("\nRetrieving Episode List from: " + a)
+            if not a == '#':
+                browser.get(a)
+                content = browser.page_source
+                soup = BeautifulSoup(content, 'html.parser')
+            epList = getEpisodeList(soup)
+            episodeList.extend(epList)
+            #get episode titles
+            episodeTitleList.extend(getEpisodeTitleList(soup))
             
+    print("Retrieved Episode List!")
+
+    print("Checking files...")
+    #check if directory exists
+    #check if episodes exists in directory
+    #episodeList = checkFilesExist(episodeList)
+    episodeList = checkFilesExist(episodeList,episodeTitleList)
+    print("File check complete!")
+    
+    print("Titles: " + str(len(titles)) )
+    print("Links: "+ str(len(episodeList)) )
+    return episodeList
+    #print(episodeList)
+    #print(pageList)
+    
+#check which files exists
+#if an episode exists, remove from list, then return remaining list
+def checkFilesExist(episodeList, episodeTitleList):
+    total = len(episodeTitleList)
+    toRemoveEp = []
+    toRemoveT = []
+    for index in range(0,total):
+        title = episodeTitleList[index]
+        if episodeExists(title):
+            print('[' + title + '] exists!' )
+            #mark index to delete
+            toRemoveT.append(title)
+            toRemoveEp.append(episodeList[index])
+            
+    for item in toRemoveEp:
+        print('Removing ' + item + '...')
+        episodeList.remove(item)
+        print('Removed episode url!')
+
+    global titles
+    titles = episodeTitleList
+    for item in toRemoveT:
+        print('Removing ' + item + '...')
+        titles.remove(item)
+        print('Removed episode name!')
+        
+    return episodeList
+
 def downloadImageW(src, browser):
     browser.get(src)
     print("Saving image...")
@@ -90,42 +217,90 @@ def cropImage(filename):
     #530x843
     img = Image.open(filename)
     #img.crop((463,0,993,843))
-    cropped = img.crop((467,0,993,843))
+    global comicType
+    if comicType == 'f':
+        cropped = img.crop((467,0,993,843))
+    elif comicType == 'c':
+        cropped = img.crop((425,0,1035,843))
     cropped.save(filename)
     
 def alertIsPresent(browser):
     try:
         alert = browser.switch_to_alert();
+        print("Alert is present...")
         alert.accept()
+        print("Alert accepted!")
     except:
         print("No Alert present.")
        
 def scroll(browser, url):
     browser.get(url)
     alertIsPresent(browser)
-    s = "window.scrollTo(0,document.body.scrollHeight); var lenOfPage=document.body.scrollHeight; return lenOfPage;"
-    lenOfPage = browser.execute_script(s)
-    match = False
-    while(match==False):
-        lastCount = lenOfPage
-        browser.implicitly_wait(5)
-        lenOfPage = browser.execute_script(s)
-        if lastCount == lenOfPage:
-            match=True
+    body = browser.find_element_by_tag_name('body')
+    body.send_keys(Keys.SPACE)
+    browser.implicitly_wait(5)
+    for i in range (0,600):
+        body.send_keys(Keys.SPACE)
+    browser.implicitly_wait(1)
+    
+    #try explicit wait. if element img.get 'src' not 'bg.transparent'
 
-def mkdir(typeOfComic):
-    if(typeOfComic == 1): #Webtoon
-        global newPath
-        newPath = "/home/vi/Pictures/Webtoon/" + parentFolderName + "/Episode " + episodeNo +"/"
-        if not os.path.exists(newPath):
-            os.mkdir(newPath)
-    elif (typeOfComic == 2): #Other 
-        return
+def rootExists():
+#    folder = ""
+#    for c in folderName:
+#        if c == '&':
+#            folder.append('and')
+#        else:
+#            folder.append(c)
+    global parentFolder
+    global location
+    path = location + parentFolder
+    print("Checking " + path + "...")
+    if os.path.exists(path):
+        print("["+parentFolder+"] exists!")
+        return True  
+    else:
+        print("["+parentFolder+"] does not exist!")
+        return False
+    
+def episodeExists(filename):
+    global parentFolder
+    global location
+    path = location + parentFolder + filename
+    #print("Checking " + path + "...")
+    if os.path.exists(path):
+        print("[" + filename + "] exists!")
+        return True
+    else:
+        #print("File does not exist!")
+        return False
+    
+def mkroot():
+    global parentFolder
+    global location
+    path = location + parentFolder
+    os.mkdir(path)
+
+def mkdir(path):
+    if not os.path.exists(path):
+        os.mkdir(path)
+    
+#def mkdir(typeOfComic):
+#    if(typeOfComic == 1): #Webtoon
+#        global newPath
+#        global location
+#        global parentFolder
+#        newPath = location + parentFolder + "/Episode " + episodeNo +"/"
+#        if not os.path.exists(newPath):
+#            os.mkdir(newPath)
+#    elif (typeOfComic == 2): #Other 
+#        return
 
 def moveImages():
     global newPath
     global count
-    path = "/home/vi/Pictures/Webtoon/" + parentFolderName + "/Episode " + episodeNo +"/"
+    global parentFolder
+    path = "/home/vi/Pictures/Webtoon/" + parentFolder + "/Episode " + episodeNo +"/"
     for i in range(1,count):
         oldPath = "/home/vi/Pictures/Test/" + str(i) + ".png"
         newPath = path + str(i) + ".png"
@@ -203,21 +378,47 @@ def truyen():
     getChapter(soup, chap, endChap)
 ###############################################
 def webtoon():
-    global parentFolderName
+    global parentFolder
     global episodeNo
-    print("Downloading Webtoon")
-    url = input('Enter link: ')
-    parentFolderName = input ('Enter comic root folder: ')
-    episodeNo = input ('Enter episode #: ')
+    global comicType
+    global location
+    global currentIndex
 
+    location = "/home/vi/Pictures/Webtoon/"
+    
+    print("Downloading Webtoon")
+    #get info of comic
+    url = input('Enter link: ')
+    #parentFolderName = input ('Enter comic root folder: ') + '/'
+    #episodeNo = input ('Enter episode #: ')
+    comicType = input ('Featured or Challenge (f/c): ')
+    
     browser = webdriver.Chrome("/usr/lib/chromium-browser/chromedriver")
-    scroll(browser, url)
+    browser.get(url)
+    
+    #scroll through page
+    #scroll(browser, url)
     content = browser.page_source
     soup = BeautifulSoup(content, 'html.parser')
 
-    getImagesW(soup, browser)
-    mkdir(1)
-    moveImages()
+    #global comicName
+    #comicName = soup.find('h1',class_='subj').string
+    #parentFolder = comicName + '/'
+    
+    episodes = getEpisodes(soup, browser)
+    #episodes = ['https://www.webtoons.com/en/fantasy/mage-and-demon-queen/episode-5/viewer?title_no=1438&episode_no=5',
+    #            'https://www.webtoons.com/en/fantasy/mage-and-demon-queen/episode-4/viewer?title_no=1438&episode_no=4']
+    #global titles
+    #titles = ['Episode 5','Episode 4']
+    for link in episodes:
+        browser.get(link)
+        scroll(browser,link)
+        content = browser.page_source
+        soup = BeautifulSoup(content, 'html.parser')
+        getImagesW(soup, browser)
+        currentIndex+=1
+    #mkdir(1)
+    #moveImages()
     #getNextEpisode(soup,browser)
     #downloadImageW(url, browser)
     #browser.close()
@@ -288,11 +489,14 @@ def main():
 ###############################################
 location = "/home/vi/Pictures/Images/"
 default = "/home/vi/Pictures/Images/"
-parentFolderName = "#"
+parentFolder = "#"
 episodeNo = "#"
 newPath = "#"
 filename = "#"
-count = 1
+comicType = 'f' # f = featured # c = challenge
+comicName = "#"
+titles = []
+currentIndex = 0
 
 webtoon()
 #garfield()
