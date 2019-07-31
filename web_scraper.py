@@ -74,7 +74,7 @@ def getImagesW(soup, browser):
             except:
                 return
                 #print("Cannot save image.")
-
+    print('Finished retrieving ' + title + '!')
 def getNextEpisode():
     print("Checking files...")
     #check if directory exists
@@ -90,7 +90,7 @@ def getEpisodeList(soup):
     epList = soup.find('ul', id = '_listUl')
     #find the a-atributes
     for ep in epList.descendants:
-        if ep.name == 'a':
+        if ep.name == 'a' and not ep.parent.name == 'span':
             link = ep.get('href')
             #print(link)
             episodeList.append(link)
@@ -101,10 +101,10 @@ def getEpisodeTitleList(soup):
     titleList = []
     epList = soup.find('ul', id = '_listUl')
     tList = soup.find_all('span', class_='subj')
-    #find the a-atributes
+    #find the a-attributes
     for t in tList:
         if t.parent.name == 'a':
-            title = t.string
+            title = t.text
             #print(title)
             titleList.append(title)
     return titleList
@@ -175,6 +175,7 @@ def checkFilesExist(episodeList, episodeTitleList):
     toRemoveT = []
     for index in range(0,total):
         title = episodeTitleList[index]
+        print(title)
         if episodeExists(title):
             print('[' + title + '] exists!' )
             #mark index to delete
@@ -195,36 +196,39 @@ def checkFilesExist(episodeList, episodeTitleList):
         
     return episodeList
 
-def downloadImageW(src, browser):
-    browser.get(src)
-    print("Saving image...")
-    global filename
-    filename = "/home/vi/Pictures/Test/" + str(count) + ".png"
-    try:
-        res = requests.get(src)
-        res.raise_for_status()
-        print("Saving image...")
-        imageFile = open(filename, 'wb')
-        for chunk in res.iter_content(100000):
-            imageFile.write(chunk)
-        imageFile.close()
-
-        print("Saved image!")
-    except:
-        print("Cannot save image.")
+# def downloadImageW(src, browser):
+#     browser.get(src)
+#     print("Saving image...")
+#     global filename
+#     filename = "/home/vi/Pictures/Test/" + str(count) + ".png"
+#     try:
+#         res = requests.get(src)
+#         res.raise_for_status()
+#         print("Saving image...")
+#         imageFile = open(filename, 'wb')
+#         for chunk in res.iter_content(100000):
+#             imageFile.write(chunk)
+#         imageFile.close()
+#
+#         print("Saved image!")
+#     except:
+#         print("Cannot save image.")
 
 def cropImage(filename):
     #530x843
-    img = Image.open(filename)
+    #img = Image.open(filename)
     #img.crop((463,0,993,843))
     global comicType
     if comicType == 'f':
+        img = Image.open(filename)
         cropped = img.crop((467,0,993,843))
-    elif comicType == 'c':
-        cropped = img.crop((425,0,1035,843))
-    cropped.save(filename)
+        cropped.save(filename)
+    #elif comicType == 'c':
+    #    cropped = img.crop((425,0,1035,843))
+    #cropped.save(filename)
     
 def alertIsPresent(browser):
+    #browser.implicitly_wait(2)
     try:
         alert = browser.switch_to_alert();
         print("Alert is present...")
@@ -234,8 +238,8 @@ def alertIsPresent(browser):
         print("No Alert present.")
        
 def scroll(browser, url):
-    browser.get(url)
     alertIsPresent(browser)
+    #browser.get(url)
     body = browser.find_element_by_tag_name('body')
     body.send_keys(Keys.SPACE)
     browser.implicitly_wait(5)
@@ -266,8 +270,8 @@ def rootExists():
 def episodeExists(filename):
     global parentFolder
     global location
-    path = location + parentFolder + filename
-    #print("Checking " + path + "...")
+    path = str(location + parentFolder + filename)
+    print("Checking " + path + "...")
     if os.path.exists(path):
         print("[" + filename + "] exists!")
         return True
@@ -361,21 +365,8 @@ def getChapter(soup, start, end):
     print(chapter.prettify())
     
 #Save to PDF
-def truyen():
-    print("Downloading Truyen...")
-    location = "/home/vi/Documents/Truyen/"
-    #https://truyenfull.vn/bac-tong-phong-luu/
-    url = input('Enter link: ')
-    chap = int(input('From chapter: '))
-    endChap = int(input('to chapter: '))
-    chapterUrl = url + "chuong-" + str(chap) + "/"
-    print(chapterUrl)
-    browser = webdriver.Chrome("/usr/lib/chromium-browser/chromedriver")
-    browser.get(chapterUrl)
-    content = browser.page_source
-    soup = BeautifulSoup(content, 'html.parser')
-    #setupSoup(browser)
-    getChapter(soup, chap, endChap)
+def other():
+    print('Empty...')
 ###############################################
 def webtoon():
     global parentFolder
@@ -404,12 +395,10 @@ def webtoon():
     #global comicName
     #comicName = soup.find('h1',class_='subj').string
     #parentFolder = comicName + '/'
-    
+
+    #if comicType == 'f' or comicType == 'c':
     episodes = getEpisodes(soup, browser)
-    #episodes = ['https://www.webtoons.com/en/fantasy/mage-and-demon-queen/episode-5/viewer?title_no=1438&episode_no=5',
-    #            'https://www.webtoons.com/en/fantasy/mage-and-demon-queen/episode-4/viewer?title_no=1438&episode_no=4']
-    #global titles
-    #titles = ['Episode 5','Episode 4']
+    #this works for featured webtoons
     for link in episodes:
         browser.get(link)
         scroll(browser,link)
@@ -417,6 +406,14 @@ def webtoon():
         soup = BeautifulSoup(content, 'html.parser')
         getImagesW(soup, browser)
         currentIndex+=1
+    #elif comicType == 'c':
+    #    episodes = getEpisodes(soup,browser)
+        
+    #episodes = ['https://www.webtoons.com/en/fantasy/mage-and-demon-queen/episode-5/viewer?title_no=1438&episode_no=5',
+    #            'https://www.webtoons.com/en/fantasy/mage-and-demon-queen/episode-4/viewer?title_no=1438&episode_no=4']
+    #global titles
+    #titles = ['Episode 5','Episode 4']
+    
     #mkdir(1)
     #moveImages()
     #getNextEpisode(soup,browser)
@@ -440,10 +437,10 @@ def garfield():
     url = "https://garfield.com/comic/" + filename
     endUrl = "https://garfield.com/comic/" + end
     browser = webdriver.Chrome("/usr/lib/chromium-browser/chromedriver")
-
+    browser.get(url)
     #Pass popup verification
     while True:
-        browser.get(url)
+        #browser.get(url)
         if popupIsPresent(browser):
             submit(browser)
             break
@@ -463,29 +460,30 @@ def garfield():
 
     choice = input("Do you want to continue (y/n)? ")
     if choice == 'y':
+        
         return
     
 ###############################################
 def main():
-    print("Download from: ")
-    print("1. Webtoon")
-    print("2. Garfield")
-    print("3. Truyen")
-    print("4. exit")
-    option = int(input("Enter an option: "))
-    
     #location = input("Enter download directory (Enter d for default): ")
     #if location == 'd':
     #    location = default
     while True:
+        print("Download from: ")
+        print("1. Webtoon")
+        print("2. Garfield")
+        print("3. Other")
+        print("4. exit")
+        option = int(input("Enter an option: "))
         if option == 1:
             webtoon()
         elif option == 2:
             garfield()
         elif option == 3:
-            truyen()
+            other()
         elif option == 4:
             break
+        
 ###############################################
 location = "/home/vi/Pictures/Images/"
 default = "/home/vi/Pictures/Images/"
@@ -498,7 +496,6 @@ comicName = "#"
 titles = []
 currentIndex = 0
 
-webtoon()
-#garfield()
-#truyen()        
-#main()
+#webtoon()
+#garfield()      
+main()
